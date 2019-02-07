@@ -6,6 +6,7 @@ import igraph
 from lingpy.convert.graph import networkx2igraph
 from networkx.algorithms.bipartite import *
 import tqdm
+import numpy as np
 
 def to_ccm(tokens):
     cv = tokens2class(tokens, 'cv')
@@ -77,7 +78,7 @@ def make_graph(
         gaps=True,
         cut=2,
         ngram_gaps=True,
-        model='sca',
+        model=['sca'],
         all_ngrams=True
         ):
     G = nx.Graph()
@@ -87,45 +88,55 @@ def make_graph(
             'concept'
             ):
         # exclude chars from the string
-        classes = [x for x, y in zip(
-            tokens2class(word, model=model),
-            tokens2class(word, model='cv')) if y not in
-                exclude]
-
-        # TODO think of controling for sound classes of less than n characters
-        G.add_node(idx, ntype=1, language=language, concept=concept, word=word)
-        class_string = ''.join(classes)
-        if classes not in G:
-            G.add_node(concept+'/'+class_string, ntype=2)
-        G.add_edge(idx, concept+'/'+class_string)
-
-        # this part needs to be refined, to make it more reasonable: compute a
-        # certain amount of skip-grams etc., but not in this messy fashion
         forms = set()
-        if gaps:
-            for form in add_gaps(classes):
-                forms.add(form)
-                forms.add(form+'-') # control for small forms
+        class_strings = []
+        for m in model:
+            classes = [x for x, y in zip(
+                tokens2class(word, model=m),
+                tokens2class(word, model='cv')) if y not in
+                    exclude]
 
-        if all_ngrams:
-            for form in retrieve_all_ngrams(classes, ngrams):
-                forms.add(form)
-                forms.add(form+'-')
+            # TODO think of controling for sound classes of less than n characters
+            G.add_node(idx, ntype=1, language=language, concept=concept, word=word)
+            class_string = ''.join(classes)
+            if classes not in G:
+                G.add_node(concept+'/'+class_string, ntype=2)
+            G.add_edge(idx, concept+'/'+class_string)
 
-        if ngrams:
-            for form in get_ngrams(classes, ngrams, ngram_gaps=ngram_gaps): 
-                forms.add(form)
-                forms.add(form+'-')
+            # this part needs to be refined, to make it more reasonable: compute a
+            # certain amount of skip-grams etc., but not in this messy fashion
+            if gaps:
+                for form in add_gaps(classes):
+                    forms.add(form)
+                    forms.add(form+'-') # control for small forms
 
-        for form in forms:
-            if concept+'/'+form not in G:
-                G.add_node(concept+'/'+form, ntype=2)
-            G.add_edge(idx, concept+'/'+form)
+            if all_ngrams:
+                for form in retrieve_all_ngrams(classes, ngrams):
+                    forms.add(form)
+                    forms.add(form+'-')
+
+            if ngrams:
+                for form in get_ngrams(classes, ngrams, ngram_gaps=ngram_gaps): 
+                    forms.add(form)
+                    forms.add(form+'-')
+
+            for form in forms:
+                if concept+'/'+form not in G:
+                    G.add_node(concept+'/'+form, ntype=2)
+                G.add_edge(idx, concept+'/'+form)
             
     if cut: 
+        degs = sorted([len(G[n]) for n, d in G.nodes(data=True) if
+            d['ntype'] == 2])
+        deg_mean = sum(degs) / len(degs)
+        deg_med = np.median(list(set(degs)))
+        if cut < 1:
+            cut_val = int(cut * deg_med + 0.5)
+        else:
+            cut_val = cut
         for node, data in list(G.nodes(data=True)):
             if data['ntype'] == 2:
-                if len(G[node]) == cut:
+                if len(G[node]) <= cut_val:
                     G.remove_node(node)
     return G
 
@@ -149,9 +160,9 @@ def get_cognates(wordlist, graph, ref='fcdid', method='cc'):
             if subgraph.edges:
                 graph_new = networkx2igraph(subgraph)
                 if method == 'infomap':
-                    clust = graph_new.community_infomap(edge_weights='weight')
+                    clust = graph_new.community_infomap() #edge_weights='weight')
                 elif method == 'multilevel':
-                    clust = graph_new.community_multilevel(weights='weight')
+                    clust = graph_new.community_multilevel() #weights='weight')
                 for i, comp in enumerate(clust):
                     for node in comp:
                         cogs[graph_new.vs[node]["Name"]] = str(i+1)+'-'+str(concept)

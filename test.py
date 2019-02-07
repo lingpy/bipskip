@@ -13,13 +13,13 @@ if 'test' in argv:
         wl = Wordlist(f)
         fcdet(
                 wl,
-                exclude='V_+',
+                exclude='V_+T',
                 ngrams=4,
-                ngram_gaps=False,
-                cut=1,
-                model='asjp',
+                ngram_gaps=True,
+                cut=0.2,
+                model=['sca', 'asjp'],
                 gaps=True,
-                all_ngrams=False,
+                all_ngrams=True,
                 ref='autocog',
                 method='cc'
                 )
@@ -32,17 +32,51 @@ if 'test' in argv:
 
     print(tabulate(table, tablefmt='pipe', headers=['data', 'p', 'r', 'fs']))
 
+if 'test2' in argv:
+    table = []
+    for f in tqdm.tqdm(sorted(glob('data/test2/*.csv'))):
+        wl = Wordlist(f)
+        fcdet(
+                wl,
+                exclude='V_+T',
+                ngrams=4,
+                ngram_gaps=True,
+                cut=0.2,
+                model=['sca', 'asjp'],
+                gaps=True,
+                all_ngrams=True,
+                ref='autocog',
+                method='cc'
+                )
+        wl.add_entries('cogidn', 'cogid,concept', lambda x, y:
+                str(x[y[0]])+'-'+x[y[1]])
+        wl.renumber('cogidn')
+        p, r, fs = bcubes(wl, 'cogidnid', 'autocog', pprint=False)
+        table += [[f[7:-4], round(p, 2), round(r, 2), round(fs, 4)]]
+    table += [['total', 
+        sum([line[1] for line in table]) / 5,
+        sum([line[2] for line in table]) / 5,
+        sum([line[3] for line in table]) / 5]]
+
+    print(tabulate(table, tablefmt='pipe', headers=['data', 'p', 'r', 'fs']))
+
+
 
 if 'training' in argv:
-    ngrams = [3, 4, 5]
-    excludes = ['V_+', 'V_+T']
+    ngrams = [4, 5, 3, 2, 6]
+    excludes = ['V_+T', 'V_+',]
     ngram_gaps = [True, False]
     allngrams = [True, False]
-    cuts = [3, 2, 1]
-    models = ['sca', 'asjp', 'dolgo']
-    gaps = [True]
+    cuts = [0.2, 0.4][::-1]
+    models = [['sca'], ['asjp'], ['sca', 'asjp'], ['sca', 'dolgo'], ['asjp',
+        'dolgo'],
+        ['asjp', 'dolgo', 'sca']
+            ][::-1]
+    gaps = [True, False]
     best = 0.0
-    methods = ['infomap', 'multilevel', 'cc']
+    methods = [
+            'infomap', #'multilevel', 
+            'cc']
     for ngram, exclude, ngram_gap, cut, model, gap, allngram, method in product(
             ngrams, excludes, ngram_gaps, cuts, models, gaps, allngrams,
             methods):
@@ -75,12 +109,12 @@ if 'training' in argv:
         else:
             star = ' '
 
-        print('{0:5} | {1} | {2:6} | {3:6} | {4:6} | {5:6} | {6:6} | {7:.2f} | {8:.2f} | {9:.4f} {10:10} {11}'.format(
+        print('{0:5} | {1} | {2:6} | {3:6} | {4:6} | {5:6} | {6:6} | {7:.2f} | {8:.2f} | {9:.4f} | {10:10} {11}'.format(
             exclude,
             ngram,
             str(ngram_gap),
             cut,
-            model,
+            '/'.join(model),
             str(gap),
             str(allngram),
             round(sum([line[1] for line in table]) / len(table), 2),
