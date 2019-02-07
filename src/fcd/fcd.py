@@ -2,6 +2,10 @@ from lingpy import *
 import networkx as nx
 from lingpy import basictypes as bt
 from lingpy.sequence.sound_classes import get_all_ngrams
+import igraph
+from lingpy.convert.graph import networkx2igraph
+from networkx.algorithms.bipartite import *
+import tqdm
 
 def to_ccm(tokens):
     cv = tokens2class(tokens, 'cv')
@@ -126,14 +130,38 @@ def make_graph(
     return G
 
 
-def get_cognates(wordlist, graph, ref='fcdid'):
+def get_cognates(wordlist, graph, ref='fcdid', method='cc'):
     cogs = {}
-    for i, comp in enumerate(nx.connected_components(graph)):
-        nodes = [n for n in comp if graph.node[n]['ntype'] == 1]
-        for node in nodes:
-            cogs[node] = i+1
-
-    wordlist.add_entries(ref, cogs, lambda x: x)
+    if method == 'cc':
+        for i, comp in enumerate(nx.connected_components(graph)):
+            nodes = [n for n in comp if graph.node[n]['ntype'] == 1]
+            for node in nodes:
+                cogs[node] = i+1
+        wordlist.add_entries(ref, cogs, lambda x: x)
+    else:
+        projected = weighted_projected_graph(graph, {n for n in graph if
+            graph.node[n]['ntype'] == 1}, ratio=True)
+        #for concept in wordlist.rows:
+        for concept, component in enumerate(nx.connected_components(projected)):
+            #subgraph = nx.subgraph(projected, {n for n in wordlist.get_list(
+            #    row=concept, flat=True)})
+            subgraph = nx.subgraph(projected, component)
+            if subgraph.edges:
+                graph_new = networkx2igraph(subgraph)
+                if method == 'infomap':
+                    clust = graph_new.community_infomap(edge_weights='weight')
+                elif method == 'multilevel':
+                    clust = graph_new.community_multilevel(weights='weight')
+                for i, comp in enumerate(clust):
+                    for node in comp:
+                        cogs[graph_new.vs[node]["Name"]] = str(i+1)+'-'+str(concept)
+            else:
+                for i, idx in enumerate(component): 
+                    cogs[idx] = str(i+1)+str(concept)
+                #for i, idx in enumerate(wordlist.get_list(row=concept, flat=True)):
+                #    cogs[idx] = str(i+1)+'-'+str(concept)
+        wordlist.add_entries('dummy', cogs, lambda x: x)
+        wordlist.renumber('dummy', ref)
 
 
 def fcdet(wordlist, 
@@ -145,7 +173,8 @@ def fcdet(wordlist,
         cut=1,
         ngram_gaps=True,
         model='asjp',
-        all_ngrams=True
+        all_ngrams=True,
+        method='cc'
         ):
     """Get cognates from this method"""
     graph = make_graph(
@@ -159,5 +188,5 @@ def fcdet(wordlist,
             model=model,
             all_ngrams=all_ngrams)
 
-    get_cognates(wordlist, graph, ref=ref)
+    get_cognates(wordlist, graph, ref=ref, method=method)
 

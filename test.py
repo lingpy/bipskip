@@ -5,18 +5,47 @@ from itertools import product
 from lingpy import *
 from lingpy.evaluate.acd import *
 import tqdm
+from tabulate import tabulate
+
+if 'test' in argv:
+    table = []
+    for f in tqdm.tqdm(sorted(glob('data/test/*.tsv'))):
+        wl = Wordlist(f)
+        fcdet(
+                wl,
+                exclude='V_+',
+                ngrams=4,
+                ngram_gaps=False,
+                cut=1,
+                model='asjp',
+                gaps=True,
+                all_ngrams=False,
+                ref='autocog',
+                method='cc'
+                )
+        p, r, fs = bcubes(wl, 'cogid', 'autocog', pprint=False)
+        table += [[f[7:-4], round(p, 2), round(r, 2), round(fs, 4)]]
+    table += [['total', 
+        sum([line[1] for line in table]) / 6,
+        sum([line[2] for line in table]) / 6,
+        sum([line[3] for line in table]) / 6]]
+
+    print(tabulate(table, tablefmt='pipe', headers=['data', 'p', 'r', 'fs']))
+
 
 if 'training' in argv:
     ngrams = [3, 4, 5]
     excludes = ['V_+', 'V_+T']
     ngram_gaps = [True, False]
     allngrams = [True, False]
-    cuts = [1]
-    models = ['sca', 'dolgo', 'asjp']
-    gaps = [True, False]
+    cuts = [3, 2, 1]
+    models = ['sca', 'asjp', 'dolgo']
+    gaps = [True]
     best = 0.0
-    for ngram, exclude, ngram_gap, cut, model, gap, allngram in product(
-            ngrams, excludes, ngram_gaps, cuts, models, gaps, allngrams):
+    methods = ['infomap', 'multilevel', 'cc']
+    for ngram, exclude, ngram_gap, cut, model, gap, allngram, method in product(
+            ngrams, excludes, ngram_gaps, cuts, models, gaps, allngrams,
+            methods):
         table = []
         for f in glob('data/training/*.csv'):
             wl = Wordlist(f)
@@ -32,7 +61,8 @@ if 'training' in argv:
                     model=model,
                     gaps=gap,
                     all_ngrams=allngram,
-                    ref='autocog'
+                    ref='autocog',
+                    method=method
                     )
             p, r, fs = bcubes(wl, 'cogid', 'autocog', pprint=False)
 
@@ -45,7 +75,7 @@ if 'training' in argv:
         else:
             star = ' '
 
-        print('{0:5} | {1} | {2:6} | {3:6} | {4:6} | {5:6} | {6:6} | {7:.2f} | {8:.2f} | {9:.4f} {10}'.format(
+        print('{0:5} | {1} | {2:6} | {3:6} | {4:6} | {5:6} | {6:6} | {7:.2f} | {8:.2f} | {9:.4f} {10:10} {11}'.format(
             exclude,
             ngram,
             str(ngram_gap),
@@ -56,5 +86,6 @@ if 'training' in argv:
             round(sum([line[1] for line in table]) / len(table), 2),
             round(sum([line[2] for line in table]) / len(table), 2),
             round(sum([line[3] for line in table]) / len(table), 4),
+            method,
             star,
             ))
