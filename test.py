@@ -95,7 +95,8 @@ if 'sca2' in argv:
     for f in tqdm.tqdm(sorted(glob('data/test2/*.csv'))):
         wl = LexStat(f)
         wl.cluster(method='sca', threshold=0.45, ref='autocog',
-                cluster_method='infomap')
+                )
+                #cluster_method='infomap')
         wl.add_entries('cogidn', 'cogid,concept', lambda x, y:
                 str(x[y[0]])+'-'+x[y[1]])
         wl.renumber('cogidn')
