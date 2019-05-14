@@ -26,9 +26,9 @@ def to_ccm(tokens):
 
 def fast_ccm(wordlist, ref='ccmid'):
 
-    wl.add_entries('cog', 'tokens,concept', lambda x, y:
+    wordlist.add_entries('cog', 'tokens,concept', lambda x, y:
             x[y[1]]+'-'+to_ccm(x[y[0]]))
-    wl.renumber('cog', ref, override=True)
+    wordlist.renumber('cog', ref, override=True)
 
 
 def retrieve_all_ngrams(sequence, n):
@@ -70,6 +70,50 @@ def add_gaps(sequence):
     return sorted(out, key=lambda x: str(x))
 
 
+def make_skips(
+        word, 
+        models=['sca'], 
+        gaps=True, 
+        all_ngrams=True, 
+        ngrams=3,
+        ngram_gaps=True,
+        exclude='T_V+',
+        prosody=False
+        ):
+    forms = set()
+    class_strings = []
+    cvm = tokens2class(word, model='cv')
+    if prosody:
+        pstring = [':'+x for x, y in zip(
+            prosodic_string(word),
+            cvm) if y not in exclude]
+    else:
+        pstring = ['' for x in cvm]
+
+    for m in models:
+        classes = [x+z for x, y, z in zip(
+            tokens2class(word, model=m),
+            cvm, pstring) if y not in
+                exclude]
+
+        # form itself
+        forms.add(''.join(classes))
+        if gaps:
+            for form in add_gaps(classes):
+                forms.add(form)
+                forms.add(form+'-') # control for small forms
+
+        if all_ngrams:
+            for form in retrieve_all_ngrams(classes, ngrams):
+                forms.add(form)
+                forms.add(form+'-')
+
+        if ngrams:
+            for form in get_ngrams(classes, ngrams, ngram_gaps=ngram_gaps): 
+                forms.add(form)
+                forms.add(form+'-')
+    return forms
+
 def make_graph(
         wordlist, 
         segments='tokens', 
@@ -79,7 +123,8 @@ def make_graph(
         cut=2,
         ngram_gaps=True,
         model=['sca'],
-        all_ngrams=True
+        all_ngrams=True,
+        prosody=False
         ):
     G = nx.Graph()
     for idx, language, word, concept in wordlist.iter_rows(
@@ -90,40 +135,22 @@ def make_graph(
         # exclude chars from the string
         forms = set()
         class_strings = []
-        for m in model:
-            classes = [x for x, y in zip(
-                tokens2class(word, model=m),
-                tokens2class(word, model='cv')) if y not in
-                    exclude]
+        
+        # add concept-id-strings to graph
+        G.add_node(idx, ntype=1, language=language, concept=concept, word=word)
+        forms = make_skips(word, 
+                gaps=gaps,
+                all_ngrams=all_ngrams,
+                ngrams=ngrams,
+                models=model,
+                ngram_gaps=ngram_gaps,
+                prosody=prosody
+                )
 
-            # TODO think of controling for sound classes of less than n characters
-            G.add_node(idx, ntype=1, language=language, concept=concept, word=word)
-            class_string = ''.join(classes)
-            if classes not in G:
-                G.add_node(concept+'/'+class_string, ntype=2)
-            G.add_edge(idx, concept+'/'+class_string)
-
-            # this part needs to be refined, to make it more reasonable: compute a
-            # certain amount of skip-grams etc., but not in this messy fashion
-            if gaps:
-                for form in add_gaps(classes):
-                    forms.add(form)
-                    forms.add(form+'-') # control for small forms
-
-            if all_ngrams:
-                for form in retrieve_all_ngrams(classes, ngrams):
-                    forms.add(form)
-                    forms.add(form+'-')
-
-            if ngrams:
-                for form in get_ngrams(classes, ngrams, ngram_gaps=ngram_gaps): 
-                    forms.add(form)
-                    forms.add(form+'-')
-
-            for form in forms:
-                if concept+'/'+form not in G:
-                    G.add_node(concept+'/'+form, ntype=2)
-                G.add_edge(idx, concept+'/'+form)
+        for form in forms:
+            if concept+'/'+form not in G:
+                G.add_node(concept+'/'+form, ntype=2)
+            G.add_edge(idx, concept+'/'+form)
             
     if cut: 
         degs = sorted([len(G[n]) for n, d in G.nodes(data=True) if
@@ -185,7 +212,8 @@ def fcdet(wordlist,
         ngram_gaps=True,
         model='asjp',
         all_ngrams=True,
-        method='cc'
+        method='cc',
+        prosody=False
         ):
     """Get cognates from this method"""
     graph = make_graph(
@@ -197,7 +225,8 @@ def fcdet(wordlist,
             cut=cut,
             ngram_gaps=ngram_gaps,
             model=model,
-            all_ngrams=all_ngrams)
+            all_ngrams=all_ngrams,
+            prosody=prosody)
 
     get_cognates(wordlist, graph, ref=ref, method=method)
 

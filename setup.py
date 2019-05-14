@@ -6,7 +6,7 @@ except ImportError:
     from setuptools import setup, find_packages
 
 setup(
-        name='fcd',
+        name='bipskip',
         description="Fast cognate detection with skip n-grams and bipartite networks",
         author='',
         url='https://github.com/lingpy/fcd',

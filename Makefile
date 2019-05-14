@@ -24,3 +24,12 @@ test-sca1:
 
 test-sca2:
 	@python test.py sca2
+
+test-sca1-im:
+	@python test.py sca infomap
+
+test-sca2-im:
+	@python test.py sca2 infomap
+
+test-ccm:
+	@python test.py ccm
