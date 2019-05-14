@@ -21,6 +21,6 @@ setup(
         version='0.0.1',
         packages=find_packages(where='src'),
         package_dir={'': 'src'},
-        install_requires=['wheel', 'lingpy', 'networkx', 'igraph-python'],
+        install_requires=['wheel', 'lingpy', 'networkx', 'python-igraph'],
         keywords="historical linguistics, computational linguistics, computer-assisted language comparison"
         )
